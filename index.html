@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Richard's Console</title>
+
+<!-- ============================================================
+     FIREBASE
+     Entries are stored in Firestore (collection "posts") so every
+     visitor sees the same dashboard. This module script initializes
+     Firebase and exposes the Firestore helpers on window.__firebase,
+     which the plain <script> near the end of <body> uses.
+     ============================================================ -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
+  import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-analytics.js";
+  import {
+    getFirestore,
+    collection,
+    addDoc,
+    getDocs,
+    query,
+    orderBy
+  } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyD1EiXx7Nu3g-ts0QEkqceQeO6UGXkOFNU",
+    authDomain: "rg-dashboard-site.firebaseapp.com",
+    projectId: "rg-dashboard-site",
+    storageBucket: "rg-dashboard-site.firebasestorage.app",
+    messagingSenderId: "725936968720",
+    appId: "1:725936968720:web:985ea4ad4a622e0f48e695",
+    measurementId: "G-63P57KB5J9"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const analytics = getAnalytics(app);
+  const db = getFirestore(app);
+
+  // Expose just what the page script (below) needs, since that
+  // script is a plain (non-module) script and can't use import.
+  window.__firebase = { db, collection, addDoc, getDocs, query, orderBy };
+</script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:wght@600;700&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --page: #f4f5f7;
+    --surface: #ffffff;
+    --surface-alt: #eef1f5;
+    --ink: #1d2027;
+    --ink-secondary: #565c68;
+    --ink-tertiary: #9198a5;
+    --line: #dbdfe6;
+    --line-strong: #c3c9d3;
+    --accent: #2e4c6d;
+    --accent-strong: #1f3650;
+    --accent-tint: #e4eaf1;
+    --error: #9a3a2f;
+    --error-tint: #fbeae7;
+    --focus-ring: rgba(46, 76, 109, 0.28);
+    --radius: 4px;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body { margin: 0; padding: 0; }
+
+  body {
+    background: var(--page);
+    color: var(--ink);
+    font-family: "Inter", -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  a { color: var(--accent); }
+
+  /* ---------- top bar ---------- */
+
+  .topbar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .topbar-inner {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 22px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .brand-mark {
+    width: 34px;
+    height: 34px;
+    background: var(--accent);
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-family: "Source Serif 4", serif;
+    font-weight: 700;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+
+  .brand-text h1 {
+    font-family: "Source Serif 4", Georgia, serif;
+    font-size: 20px;
+    font-weight: 700;
+    margin: 0;
+    letter-spacing: -0.01em;
+    color: var(--ink);
+  }
+
+  .brand-text .subtitle {
+    font-size: 12.5px;
+    color: var(--ink-tertiary);
+    margin-top: 2px;
+  }
+
+  .new-entry-btn {
+    all: unset;
+    cursor: pointer;
+    font-family: "Inter", sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    background: var(--accent);
+    padding: 10px 18px;
+    border-radius: var(--radius);
+    white-space: nowrap;
+    transition: background-color 0.12s ease;
+  }
+
+  .new-entry-btn:hover { background: var(--accent-strong); }
+  .new-entry-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+  /* ---------- meta strip ---------- */
+
+  .meta-strip {
+    max-width: 760px;
+    margin: 0 auto;
+    width: 100%;
+    padding: 16px 28px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    font-size: 13px;
+    color: var(--ink-secondary);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .meta-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+
+  .meta-item .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    flex-shrink: 0;
+  }
+
+  .meta-item strong {
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  /* ---------- main ---------- */
+
+  main {
+    flex: 1;
+    max-width: 760px;
+    margin: 0 auto;
+    width: 100%;
+    padding: 28px 28px 64px;
+  }
+
+  #posts {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .post {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 22px 24px;
+    display: grid;
+    grid-template-columns: 44px 1fr;
+    gap: 18px;
+  }
+
+  .post-index {
+    font-family: "Source Serif 4", serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--accent);
+    background: var(--accent-tint);
+    border-radius: var(--radius);
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .post-body { min-width: 0; }
+
+  .post-heading-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 6px;
+  }
+
+  .post h2 {
+    font-family: "Source Serif 4", Georgia, serif;
+    font-size: 18.5px;
+    font-weight: 700;
+    line-height: 1.35;
+    margin: 0;
+    color: var(--ink);
+  }
+
+  .post .timestamp {
+    font-size: 12.5px;
+    color: var(--ink-tertiary);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .post .divider {
+    border: none;
+    border-top: 1px solid var(--line);
+    margin: 0 0 12px;
+  }
+
+  .post .content {
+    font-size: 15px;
+    line-height: 1.65;
+    color: var(--ink-secondary);
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+
+  .post .content a {
+    color: var(--accent);
+    text-decoration-color: var(--line-strong);
+    text-underline-offset: 2px;
+  }
+
+  .empty-state {
+    background: var(--surface);
+    border: 1px dashed var(--line-strong);
+    border-radius: var(--radius);
+    padding: 56px 24px;
+    text-align: center;
+  }
+
+  .empty-state .empty-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--ink);
+    margin-bottom: 6px;
+  }
+
+  .empty-state .empty-detail {
+    font-size: 13.5px;
+    color: var(--ink-tertiary);
+  }
+
+  /* ---------- footer ---------- */
+
+  footer {
+    text-align: center;
+    padding: 18px 28px 30px;
+    font-size: 12.5px;
+    color: var(--ink-tertiary);
+    border-top: 1px solid var(--line);
+    background: var(--surface);
+  }
+
+  /* ---------- modal ---------- */
+
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(29, 32, 39, 0.5);
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    z-index: 10;
+  }
+
+  .modal-overlay.open {
+    display: flex;
+    animation: fade-in 0.12s ease-out;
+  }
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  .modal {
+    background: var(--surface);
+    width: 100%;
+    max-width: 480px;
+    border-radius: 6px;
+    box-shadow: 0 20px 60px rgba(20, 22, 28, 0.22);
+    overflow: hidden;
+  }
+
+  .modal-header {
+    padding: 22px 28px;
+    border-bottom: 1px solid var(--line);
+    background: var(--surface-alt);
+  }
+
+  .modal-header h3 {
+    margin: 0;
+    font-family: "Source Serif 4", Georgia, serif;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--ink);
+  }
+
+  .modal-header p {
+    margin: 4px 0 0;
+    font-size: 12.5px;
+    color: var(--ink-tertiary);
+  }
+
+  .modal-body {
+    padding: 24px 28px 6px;
+  }
+
+  .field { margin-bottom: 18px; }
+
+  .field label {
+    display: block;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--ink-secondary);
+    margin-bottom: 7px;
+    text-transform: none;
+  }
+
+  .field input,
+  .field textarea {
+    width: 100%;
+    font-family: "Inter", sans-serif;
+    font-size: 14.5px;
+    padding: 10px 12px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius);
+    background: var(--page);
+    color: var(--ink);
+  }
+
+  .field input::placeholder,
+  .field textarea::placeholder {
+    color: var(--ink-tertiary);
+  }
+
+  .field input:focus,
+  .field textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--focus-ring);
+  }
+
+  .field textarea {
+    min-height: 110px;
+    resize: vertical;
+    line-height: 1.55;
+    font-family: "Inter", sans-serif;
+  }
+
+  .field-hint {
+    font-size: 12px;
+    color: var(--ink-tertiary);
+    margin-top: 5px;
+  }
+
+  .modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 18px 28px 26px;
+  }
+
+  .modal-actions button {
+    all: unset;
+    cursor: pointer;
+    font-family: "Inter", sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 10px 18px;
+    border-radius: var(--radius);
+  }
+
+  .modal-actions .cancel-btn {
+    color: var(--ink-secondary);
+    border: 1px solid var(--line-strong);
+  }
+
+  .modal-actions .cancel-btn:hover { background: var(--surface-alt); }
+
+  .modal-actions .submit-btn {
+    background: var(--accent);
+    color: #fff;
+  }
+
+  .modal-actions .submit-btn:hover { background: var(--accent-strong); }
+
+  .modal-actions button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .error-msg {
+    display: none;
+    align-items: flex-start;
+    gap: 8px;
+    background: var(--error-tint);
+    color: var(--error);
+    border: 1px solid #e8c3bb;
+    border-radius: var(--radius);
+    font-size: 13px;
+    padding: 10px 12px;
+    margin: -4px 0 18px;
+  }
+
+  .error-msg.show { display: flex; }
+
+  /* ---------- small screens ---------- */
+
+  @media (max-width: 560px) {
+    .topbar-inner { padding: 18px 20px; }
+    .brand-text h1 { font-size: 18px; }
+    .new-entry-btn { padding: 9px 14px; font-size: 13.5px; }
+    .meta-strip { padding: 12px 20px; gap: 18px; flex-wrap: wrap; }
+    main { padding: 20px 20px 48px; }
+    .post { grid-template-columns: 1fr; padding: 18px 18px; }
+    .post-index { width: 30px; }
+    .modal-body { padding: 20px 20px 4px; }
+    .modal-header { padding: 18px 20px; }
+    .modal-actions { padding: 14px 20px 22px; }
+  }
+
+  /* ---------- reduced motion ---------- */
+
+  @media (prefers-reduced-motion: reduce) {
+    .modal-overlay.open { animation: none; }
+    .new-entry-btn, .modal-actions button { transition: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <div class="brand-mark">R</div>
+      <div class="brand-text">
+        <h1>Richard's Console</h1>
+        <div class="subtitle">Richard Gladson's private dashboard</div>
+      </div>
+    </div>
+    <button class="new-entry-btn" id="open-modal-btn">New Entry</button>
+  </div>
+</div>
+
+<div class="meta-strip">
+  <div class="meta-item">
+    <span class="dot"></span>
+    <span><strong id="post-count">0</strong> entries recorded</span>
+  </div>
+  <div class="meta-item">
+    <span>Public view · Owner: Richard Gladson</span>
+  </div>
+</div>
+
+<main>
+  <div id="posts">
+    <!-- Entries render here -->
+  </div>
+</main>
+
+<footer>This is Richard Gladson's private dashboard. Entries are visible to anyone with this link. A password is required to submit a new entry.</footer>
+
+<!-- New entry modal -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>New Entry</h3>
+      <p>This entry will appear on Richard's Console immediately after submission.</p>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label for="input-heading">Heading</label>
+        <input type="text" id="input-heading" maxlength="120" autocomplete="off" placeholder="Enter a heading">
+      </div>
+      <div class="field">
+        <label for="input-content">Content</label>
+        <textarea id="input-content" placeholder="Enter the entry content"></textarea>
+      </div>
+      <div class="field">
+        <label for="input-password">Password</label>
+        <input type="password" id="input-password" autocomplete="off" placeholder="Required to submit">
+        <div class="field-hint">Submission is cancelled if the password is incorrect.</div>
+      </div>
+      <div class="error-msg" id="error-msg">Incorrect password. The entry was not submitted.</div>
+    </div>
+    <div class="modal-actions">
+      <button class="cancel-btn" id="cancel-btn">Cancel</button>
+      <button class="submit-btn" id="submit-btn">Submit Entry</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ------------------------------------------------------------
+  // CONFIG
+  // ------------------------------------------------------------
+  const POST_PASSWORD = "rgisking";
+
+  // ------------------------------------------------------------
+  // STORAGE LAYER (Firestore)
+  // Entries live in the "posts" collection so every visitor sees the
+  // same dashboard. Firebase itself is initialized in the module
+  // script in <head>, which exposes what's needed here on
+  // window.__firebase.
+  // ------------------------------------------------------------
+
+  function loadPosts() {
+    const { db, collection, getDocs, query, orderBy } = window.__firebase;
+    const postsQuery = query(collection(db, "posts"), orderBy("timestamp", "desc"));
+
+    getDocs(postsQuery)
+      .then(snapshot => {
+        const posts = snapshot.docs.map(doc => doc.data());
+        renderPosts(posts);
+      })
+      .catch(err => {
+        console.error("Failed to load entries:", err);
+        renderPosts([]);
+      });
+  }
+
+  function savePost(heading, content) {
+    const { db, collection, addDoc } = window.__firebase;
+
+    addDoc(collection(db, "posts"), {
+      heading: heading,
+      content: content,
+      timestamp: Date.now()
+    }).then(() => {
+      loadPosts();
+    }).catch(err => {
+      console.error("Failed to save entry:", err);
+      errorMsg.textContent = "The entry could not be submitted. Please try again.";
+      errorMsg.classList.add("show");
+    });
+  }
+
+  // ------------------------------------------------------------
+  // RENDERING
+  // ------------------------------------------------------------
+
+  function escapeHtml(str) {
+    const div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function linkify(str) {
+    const urlPattern = /(\bhttps?:\/\/[^\s<]+)/g;
+    return str.replace(urlPattern, url => {
+      const safeUrl = escapeHtml(url);
+      return '<a href="' + safeUrl + '" target="_blank" rel="noopener noreferrer">' + safeUrl + '</a>';
+    });
+  }
+
+  function formatTimestamp(ts) {
+    const d = new Date(ts);
+    return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) +
+      " · " + d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  }
+
+  function renderPosts(posts) {
+    const container = document.getElementById("posts");
+    const countEl = document.getElementById("post-count");
+
+    countEl.textContent = posts.length;
+
+    if (posts.length === 0) {
+      container.innerHTML =
+        '<div class="empty-state">' +
+          '<div class="empty-title">No entries recorded</div>' +
+          '<div class="empty-detail">Submit the first entry using the New Entry button above.</div>' +
+        '</div>';
+      return;
+    }
+
+    const total = posts.length;
+
+    container.innerHTML = posts.map((post, i) => {
+      const heading = escapeHtml(post.heading);
+      const content = linkify(escapeHtml(post.content));
+      const time = formatTimestamp(post.timestamp);
+      const index = String(total - i).padStart(2, "0");
+      return (
+        '<article class="post">' +
+          '<div class="post-index">' + index + '</div>' +
+          '<div class="post-body">' +
+            '<div class="post-heading-row">' +
+              '<h2>' + heading + '</h2>' +
+              '<span class="timestamp">' + time + '</span>' +
+            '</div>' +
+            '<hr class="divider">' +
+            '<div class="content">' + content + '</div>' +
+          '</div>' +
+        '</article>'
+      );
+    }).join("");
+  }
+
+  // ------------------------------------------------------------
+  // MODAL LOGIC
+  // ------------------------------------------------------------
+
+  const overlay = document.getElementById("modal-overlay");
+  const openBtn = document.getElementById("open-modal-btn");
+  const cancelBtn = document.getElementById("cancel-btn");
+  const submitBtn = document.getElementById("submit-btn");
+  const errorMsg = document.getElementById("error-msg");
+
+  const headingInput = document.getElementById("input-heading");
+  const contentInput = document.getElementById("input-content");
+  const passwordInput = document.getElementById("input-password");
+
+  function openModal() {
+    overlay.classList.add("open");
+    errorMsg.classList.remove("show");
+    headingInput.value = "";
+    contentInput.value = "";
+    passwordInput.value = "";
+    headingInput.focus();
+  }
+
+  function closeModal() {
+    overlay.classList.remove("open");
+  }
+
+  openBtn.addEventListener("click", openModal);
+  cancelBtn.addEventListener("click", closeModal);
+
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) closeModal();
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && overlay.classList.contains("open")) closeModal();
+  });
+
+  submitBtn.addEventListener("click", () => {
+    const heading = headingInput.value.trim();
+    const content = contentInput.value.trim();
+    const password = passwordInput.value;
+
+    // Cancel immediately if the password is incorrect.
+    if (password !== POST_PASSWORD) {
+      errorMsg.textContent = "Incorrect password. The entry was not submitted.";
+      errorMsg.classList.add("show");
+      return;
+    }
+
+    if (!heading || !content) {
+      errorMsg.textContent = "A heading and content are required to submit an entry.";
+      errorMsg.classList.add("show");
+      return;
+    }
+
+    if (!window.__firebase) {
+      errorMsg.textContent = "Connection not yet established. Please try again.";
+      errorMsg.classList.add("show");
+      return;
+    }
+
+    savePost(heading, content);
+    closeModal();
+  });
+
+  // ------------------------------------------------------------
+  // INIT
+  // Module scripts (where Firebase is set up) run after classic
+  // scripts, so wait until window.__firebase exists before the
+  // first load.
+  // ------------------------------------------------------------
+  function waitForFirebaseThenLoad() {
+    if (window.__firebase) {
+      loadPosts();
+    } else {
+      setTimeout(waitForFirebaseThenLoad, 30);
+    }
+  }
+  waitForFirebaseThenLoad();
+</script>
+
+</body>
+</html>
