@@ -6,42 +6,14 @@
 <title>Richard's Console</title>
 
 <!-- ============================================================
-     FIREBASE
-     Entries are stored in Firestore (collection "posts") so every
-     visitor sees the same dashboard. This module script initializes
-     Firebase and exposes the Firestore helpers on window.__firebase,
-     which the plain <script> near the end of <body> uses.
+     FIREBASE — Realtime Database (RTDB)
+     Posts are stored under /posts in the RTDB so every visitor
+     sees the same dashboard in real-time. The SDK is loaded as a
+     plain <script> (compat build), so no module/import split is
+     needed and window.__firebase bridging is gone entirely.
      ============================================================ -->
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
-  import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-analytics.js";
-  import {
-    getFirestore,
-    collection,
-    addDoc,
-    getDocs,
-    query,
-    orderBy
-  } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
-
-  const firebaseConfig = {
-    apiKey: "AIzaSyD1EiXx7Nu3g-ts0QEkqceQeO6UGXkOFNU",
-    authDomain: "rg-dashboard-site.firebaseapp.com",
-    projectId: "rg-dashboard-site",
-    storageBucket: "rg-dashboard-site.firebasestorage.app",
-    messagingSenderId: "725936968720",
-    appId: "1:725936968720:web:985ea4ad4a622e0f48e695",
-    measurementId: "G-63P57KB5J9"
-  };
-
-  const app = initializeApp(firebaseConfig);
-  const analytics = getAnalytics(app);
-  const db = getFirestore(app);
-
-  // Expose just what the page script (below) needs, since that
-  // script is a plain (non-module) script and can't use import.
-  window.__firebase = { db, collection, addDoc, getDocs, query, orderBy };
-</script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -548,42 +520,61 @@
   const POST_PASSWORD = "rgisking";
 
   // ------------------------------------------------------------
-  // STORAGE LAYER (Firestore)
-  // Entries live in the "posts" collection so every visitor sees the
-  // same dashboard. Firebase itself is initialized in the module
-  // script in <head>, which exposes what's needed here on
-  // window.__firebase.
+  // FIREBASE — Realtime Database
+  // The compat SDK is loaded via <script> tags above, so
+  // firebase.initializeApp and firebase.database are available
+  // directly — no module bridging needed.
+  // ------------------------------------------------------------
+  const firebaseConfig = {
+    apiKey: "AIzaSyD1EiXx7Nu3g-ts0QEkqceQeO6UGXkOFNU",
+    authDomain: "rg-dashboard-site.firebaseapp.com",
+    databaseURL: "https://rg-dashboard-site-default-rtdb.firebaseio.com",
+    projectId: "rg-dashboard-site",
+    storageBucket: "rg-dashboard-site.firebasestorage.app",
+    messagingSenderId: "725936968720",
+    appId: "1:725936968720:web:985ea4ad4a622e0f48e695",
+    measurementId: "G-63P57KB5J9"
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+  const postsRef = db.ref("posts");
+
+  // ------------------------------------------------------------
+  // STORAGE LAYER (RTDB)
+  // onValue keeps the UI in sync in real-time whenever any client
+  // pushes a new entry — no manual reload needed.
   // ------------------------------------------------------------
 
-  function loadPosts() {
-    const { db, collection, getDocs, query, orderBy } = window.__firebase;
-    const postsQuery = query(collection(db, "posts"), orderBy("timestamp", "desc"));
-
-    getDocs(postsQuery)
-      .then(snapshot => {
-        const posts = snapshot.docs.map(doc => doc.data());
-        renderPosts(posts);
-      })
-      .catch(err => {
-        console.error("Failed to load entries:", err);
-        renderPosts([]);
+  function initLiveListener() {
+    // orderByChild("timestamp") + limitToLast gives us newest-first
+    // after we reverse the array in renderPosts.
+    postsRef.orderByChild("timestamp").on("value", snapshot => {
+      const posts = [];
+      snapshot.forEach(child => {
+        posts.push(child.val());
       });
+      // Reverse so newest post is at the top.
+      posts.reverse();
+      renderPosts(posts);
+    }, err => {
+      console.error("Failed to load entries:", err);
+      renderPosts([]);
+    });
   }
 
   function savePost(heading, content) {
-    const { db, collection, addDoc } = window.__firebase;
-
-    addDoc(collection(db, "posts"), {
+    postsRef.push({
       heading: heading,
       content: content,
       timestamp: Date.now()
-    }).then(() => {
-      loadPosts();
     }).catch(err => {
       console.error("Failed to save entry:", err);
       errorMsg.textContent = "The entry could not be submitted. Please try again.";
       errorMsg.classList.add("show");
     });
+    // No manual loadPosts() call — the onValue listener fires
+    // automatically when the new record lands.
   }
 
   // ------------------------------------------------------------
@@ -691,7 +682,6 @@
     const content = contentInput.value.trim();
     const password = passwordInput.value;
 
-    // Cancel immediately if the password is incorrect.
     if (password !== POST_PASSWORD) {
       errorMsg.textContent = "Incorrect password. The entry was not submitted.";
       errorMsg.classList.add("show");
@@ -704,30 +694,15 @@
       return;
     }
 
-    if (!window.__firebase) {
-      errorMsg.textContent = "Connection not yet established. Please try again.";
-      errorMsg.classList.add("show");
-      return;
-    }
-
     savePost(heading, content);
     closeModal();
   });
 
   // ------------------------------------------------------------
-  // INIT
-  // Module scripts (where Firebase is set up) run after classic
-  // scripts, so wait until window.__firebase exists before the
-  // first load.
+  // INIT — start the live listener immediately
+  // (compat SDK scripts are synchronous, no waiting needed)
   // ------------------------------------------------------------
-  function waitForFirebaseThenLoad() {
-    if (window.__firebase) {
-      loadPosts();
-    } else {
-      setTimeout(waitForFirebaseThenLoad, 30);
-    }
-  }
-  waitForFirebaseThenLoad();
+  initLiveListener();
 </script>
 
 </body>
