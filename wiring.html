@@ -1,0 +1,681 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>doomBOX Wiring Plan</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout concept: a scrollable schematic "board" (SVG, back-solder-side by default,
+   toggle to front) above a stacked reference deck — legend, full wire table,
+   RFID pinout, and flags — styled like PCB fab documentation. */
+:root{
+  --bg:#f1f0e6;
+  --surface:#ffffff;
+  --surface-2:#e8e4d5;
+  --fg:#1c1a14;
+  --fg-dim:#6c6655;
+  --border:#d6d0bd;
+  --accent:#a8702c;
+  --accent-fg:#ffffff;
+  --hole:#c7c0a8;
+  --pad-strap:#d98a2b;
+  --pad-reserved:#8a8370;
+  --danger:#b43a3a;
+  --font-display: 'IBM Plex Sans', system-ui, sans-serif;
+  --font-body: 'IBM Plex Sans', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#11140f;
+    --surface:#171b13;
+    --surface-2:#1f2418;
+    --fg:#e9e4d4;
+    --fg-dim:#9a9684;
+    --border:#333a27;
+    --accent:#d7a354;
+    --accent-fg:#1c1a14;
+    --hole:#3a4130;
+    --pad-strap:#e2a349;
+    --pad-reserved:#6f6a58;
+    --danger:#e07a7a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#11140f;
+  --surface:#171b13;
+  --surface-2:#1f2418;
+  --fg:#e9e4d4;
+  --fg-dim:#9a9684;
+  --border:#333a27;
+  --accent:#d7a354;
+  --accent-fg:#1c1a14;
+  --hole:#3a4130;
+  --pad-strap:#e2a349;
+  --pad-reserved:#6f6a58;
+  --danger:#e07a7a;
+  color-scheme: dark;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--fg);
+  font-family:var(--font-body);
+  font-size:14px;
+  line-height:1.5;
+  padding-left:max(16px, env(safe-area-inset-left,0px));
+  padding-right:max(16px, env(safe-area-inset-right,0px));
+}
+.wrap{max-width:980px;margin:0 auto;padding-block:28px 64px}
+h1,h2,h3{font-family:var(--font-display);font-weight:700;text-wrap:balance;margin:0}
+h1{font-size:clamp(22px,4.5vw,30px);letter-spacing:-0.01em}
+h2{font-size:18px;margin-bottom:10px;padding-top:2px}
+h3{font-size:14px;text-transform:uppercase;letter-spacing:.06em;color:var(--fg-dim);margin-bottom:8px}
+p{margin:0 0 10px}
+.eyebrow{font-family:var(--font-mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin-bottom:6px}
+.lede{color:var(--fg-dim);max-width:62ch}
+header{margin-bottom:22px}
+code,.mono{font-family:var(--font-mono)}
+section{margin-top:34px}
+.card{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:16px;
+}
+.toolbar{
+  display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;
+  margin-bottom:14px;
+}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.seg button{
+  font-family:var(--font-mono);font-size:12px;letter-spacing:.03em;
+  background:var(--surface);color:var(--fg-dim);border:0;padding:8px 14px;cursor:pointer;
+}
+.seg button+button{border-left:1px solid var(--border)}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-fg)}
+.toolbtn{
+  font-family:var(--font-mono);font-size:12px;background:var(--surface-2);color:var(--fg);
+  border:1px solid var(--border);border-radius:8px;padding:8px 12px;cursor:pointer;
+}
+.toolbtn:hover{border-color:var(--accent)}
+.board-scroll{
+  overflow:auto;
+  border:1px solid var(--border);
+  border-radius:10px;
+  background:var(--surface);
+  padding:6px;
+}
+svg#board{display:block;width:100%;height:auto;min-width:640px}
+.hole-free{fill:var(--hole);opacity:.55}
+.hole-gnd{fill:#2b2b2b;stroke:#0c0c0c}
+:root[data-theme="dark"] .hole-gnd, @media (prefers-color-scheme:dark){ }
+.hole-pwr{fill:#c23b3b;stroke:#7c1f1f}
+.hole-net{stroke:#000;stroke-opacity:.25}
+.hole-reserved{fill:none;stroke:var(--pad-reserved);stroke-width:1.4;stroke-dasharray:2 2}
+.hole-future{fill:none;stroke:var(--pad-strap);stroke-width:1.6}
+.lbl{font-family:var(--font-mono);fill:var(--fg-dim);pointer-events:none}
+.lbl-strong{fill:var(--fg);font-weight:600}
+.lbl-warn{fill:var(--danger)}
+.axis-lbl{font-family:var(--font-mono);fill:var(--fg-dim);font-size:9px}
+.comp-outline{fill:var(--accent);fill-opacity:.06;stroke:var(--accent);stroke-opacity:.45;stroke-dasharray:4 3}
+.rfid-zone{fill:var(--pad-reserved);fill-opacity:.12;stroke:var(--pad-reserved);stroke-dasharray:3 3}
+.wire{fill:none;stroke-linecap:round}
+.wire.dim{opacity:.12}
+.wire.hot{filter:drop-shadow(0 0 2px rgba(0,0,0,.35))}
+.hole-hit{fill:transparent;cursor:pointer}
+.hole-hit:hover + .hole-visible{stroke:var(--accent);stroke-width:2}
+.legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.leg-item{
+  display:flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:11.5px;
+  background:var(--surface-2);border:1px solid var(--border);border-radius:999px;padding:5px 10px 5px 8px;
+  cursor:pointer;user-select:none;color:var(--fg);
+}
+.leg-item[data-off="true"]{opacity:.4}
+.swatch{width:10px;height:10px;border-radius:50%;flex:none}
+#panel{
+  margin-top:12px;border-top:1px dashed var(--border);padding-top:12px;
+  min-height:58px;font-family:var(--font-mono);font-size:12.5px;
+}
+#panel .ph{color:var(--fg-dim)}
+#panel b{color:var(--fg)}
+table{width:100%;border-collapse:collapse;font-family:var(--font-mono);font-size:12.5px}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--border);vertical-align:top}
+th{color:var(--fg-dim);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+tr:last-child td{border-bottom:0}
+.tbl-wrap{overflow-x:auto}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:-1px}
+.pill{
+  display:inline-block;font-family:var(--font-mono);font-size:10.5px;padding:2px 7px;border-radius:999px;
+  border:1px solid var(--border);color:var(--fg-dim);
+}
+.pill.warn{color:var(--danger);border-color:var(--danger)}
+ul.flags{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+ul.flags li{
+  border:1px solid var(--border);border-left:3px solid var(--pad-strap);border-radius:6px;
+  padding:10px 12px;background:var(--surface-2);
+}
+ul.flags li b{display:block;margin-bottom:3px;font-family:var(--font-mono);font-size:12.5px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media (max-width:640px){.grid2{grid-template-columns:1fr}}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;font-family:var(--font-mono);font-size:12.5px}
+.kv dt{color:var(--fg-dim)}
+.kv dd{margin:0}
+footer{margin-top:40px;color:var(--fg-dim);font-size:12px;border-top:1px solid var(--border);padding-top:14px}
+</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
+
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">doomBOX · ESP32‑WROOM · 6×8cm perfboard, 2.54mm pitch</div>
+  <h1>Wiring &amp; back‑side solder plan</h1>
+  <p class="lede">Every hole below is addressed by the same row‑letter / column‑number pair on both faces (e.g. <code>C19</code> front = <code>C19</code> back). This view defaults to the <b>back (solder side)</b>; toggle to front to confirm component placement lines up before you drill in.</p>
+</header>
+
+<section class="card">
+  <div class="toolbar">
+    <div class="seg" role="group" aria-label="View">
+      <button id="btn-back" aria-pressed="true">BACK · SOLDER SIDE</button>
+      <button id="btn-front" aria-pressed="false">FRONT · COMPONENT SIDE</button>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="toolbtn" id="btn-all">Show all nets</button>
+      <button class="toolbtn" id="btn-none">Isolate: click a net</button>
+      <button class="toolbtn" id="btn-freehide">Hide free holes</button>
+    </div>
+  </div>
+
+  <div class="board-scroll">
+    <svg id="board" viewBox="0 0 712 862" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+
+  <div class="legend" id="legend"></div>
+
+  <div id="panel"><span class="ph">Click any hole on the board for its net, function and the exact coordinate(s) it wires to.</span></div>
+</section>
+
+<section>
+  <h2>How to read this board</h2>
+  <div class="grid2">
+    <div class="card">
+      <h3>Orientation</h3>
+      <div class="kv">
+        <dt>Columns</dt><dd>numbers, run horizontally. On the <b>front</b>, column numbers <i>decrease</i> left→right (e.g. row K runs K19 → K5, left to right) — this is given directly by your pinout, not assumed.</dd>
+        <dt>Rows</dt><dd>letters, run vertically. Row A is the bottom‑most used row, increasing alphabetically upward (A → Z).</dd>
+        <dt>Back view</dt><dd>mirrored left‑right from front (flip along the vertical axis). Column numbers therefore <i>increase</i> left→right on the back — same holes, same labels, just seen from the other side.</dd>
+        <dt>USB port</dt><dd>faces the board's left edge on the front; it therefore faces <b>right</b> on the back view shown here.</dd>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Build order</h3>
+      <div class="kv">
+        <dt>1.</dt><dd>Mount ESP32, buttons and OLED on the <b>front</b>, pins through‑hole.</dd>
+        <dt>2.</dt><dd>Flip board. All soldering and bridging wires happen on the <b>back</b>, per this diagram.</dd>
+        <dt>3.</dt><dd>Run the GND bus first (daisy‑chain, black), then power, then each signal wire.</dd>
+        <dt>4.</dt><dd>Leave column 1, rows P–W completely empty — reserved for the RFID module footprint.</dd>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Full connection list — ready to copy</h2>
+  <p class="lede">Each row is one physical wire on the back of the board between two labeled holes.</p>
+  <div class="card tbl-wrap">
+    <table>
+      <thead><tr><th>Net</th><th>From</th><th>To</th><th>Signal</th><th>Notes</th></tr></thead>
+      <tbody id="wire-table"></tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <h2>ESP32 header reference</h2>
+  <div class="grid2">
+    <div class="card tbl-wrap">
+      <h3>Top row — K19 → K5 (left→right, front)</h3>
+      <table id="tbl-top"></table>
+    </div>
+    <div class="card tbl-wrap">
+      <h3>Bottom row — A19 → A5 (left→right, front)</h3>
+      <table id="tbl-bottom"></table>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>RFID — pinout reserved, not wired</h2>
+  <p class="lede">Per your instruction, the RFID reader is <b>not</b> wired into this build. Column 1, rows P1–W1, stays empty on the board. Below is the GPIO assignment reserved for it on the ESP32 header, so nothing else claims these pins later. Three of its SPI lines are unchanged from the repo's original <code>pindefs.h</code>; only SS and RST had to move because OLED now owns GPIO21/22.</p>
+  <div class="card tbl-wrap">
+    <table>
+      <thead><tr><th>RFID pin (MFRC522)</th><th>Reserved GPIO</th><th>Header hole</th><th>vs. original repo</th></tr></thead>
+      <tbody>
+        <tr><td>SCK</td><td class="mono">GPIO18</td><td class="mono">A11</td><td>unchanged</td></tr>
+        <tr><td>MISO</td><td class="mono">GPIO19</td><td class="mono">A10</td><td>unchanged</td></tr>
+        <tr><td>MOSI</td><td class="mono">GPIO23</td><td class="mono">A5</td><td>unchanged</td></tr>
+        <tr><td>SS / SDA(CS)</td><td class="mono">GPIO5</td><td class="mono">A12</td><td><span class="pill warn">moved — was GPIO21</span></td></tr>
+        <tr><td>RST</td><td class="mono">GPIO16 (RX2)</td><td class="mono">A14</td><td><span class="pill warn">moved — was GPIO22</span></td></tr>
+        <tr><td>VCC</td><td class="mono">3V3</td><td class="mono">A19 (shared)</td><td>shared power net</td></tr>
+        <tr><td>GND</td><td class="mono">GND bus</td><td class="mono">any GND‑bus hole</td><td>shared ground net</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <h2>Flags — confirm before soldering</h2>
+  <ul class="flags" id="flags"></ul>
+</section>
+
+<footer>
+  Derived from <code>richardGladson/doomBOX</code> <code>pindefs.h</code> (Up=26, Down=33, Center=32, Left=25, Right=27, original RFID SS=21/RST=22, SPI SCK18/MISO19/MOSI23) plus this conversation's remaps: OLED → GPIO21/22 only, X → GPIO4, Y → GPIO2, RFID SS/RST moved off 21/22.
+</footer>
+
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* ---------- geometry ---------- */
+var ROWL = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+var MIN_COL = 1, MAX_COL = 21, MAX_ROW_IDX = 25; // Z
+var SP = 30, MX = 56, MY = 40;
+
+function rowIdx(l){ return ROWL.indexOf(l); }
+function colX(col, view){
+  return view === "back" ? MX + (col - MIN_COL) * SP : MX + (MAX_COL - col) * SP;
+}
+function rowY(ri){ return MY + (MAX_ROW_IDX - ri) * SP; }
+function parseHole(id){
+  var m = id.match(/^([A-Z]+)(\d+)$/);
+  return { letter: m[1], col: parseInt(m[2], 10) };
+}
+function pos(id, view){
+  var h = parseHole(id);
+  return { x: colX(h.col, view), y: rowY(rowIdx(h.letter)) };
+}
+
+/* ---------- data ---------- */
+var ESP32_TOP = {19:"VIN",18:"GND",17:"D13",16:"D12",15:"D14",14:"D27",13:"D26",12:"D25",11:"D33",10:"D32",9:"D35",8:"D34",7:"VP",6:"VN",5:"EN"};
+var ESP32_BOTTOM = {19:"3V3",18:"GND",17:"D15",16:"D2",15:"D4",14:"RX2",13:"TX2",12:"D5",11:"D18",10:"D19",9:"D21",8:"RX0",7:"TX0",6:"D22",5:"D23"};
+
+var BUTTONS = [
+  {name:"UP",     gpioHole:"U17", gndHole:"U15", espHole:"K13", gpio:"GPIO26 (D26)", net:"up"},
+  {name:"RIGHT",  gpioHole:"Q21", gndHole:"Q19", espHole:"K14", gpio:"GPIO27 (D27)", net:"right"},
+  {name:"MIDDLE", gpioHole:"Q17", gndHole:"Q15", espHole:"K10", gpio:"GPIO32 (D32)", net:"middle"},
+  {name:"DOWN",   gpioHole:"M17", gndHole:"M15", espHole:"K11", gpio:"GPIO33 (D33)", net:"down"},
+  {name:"LEFT",   gpioHole:"Q13", gndHole:"Q11", espHole:"K12", gpio:"GPIO25 (D25)", net:"left"},
+  {name:"X",      gpioHole:"O7",  gndHole:"O5",  espHole:"A15", gpio:"GPIO4 (D4)",   net:"x"},
+  {name:"Y",      gpioHole:"R4",  gndHole:"R2",  espHole:"A16", gpio:"GPIO2 (D2)",   net:"y", warn:true}
+];
+
+var OLED = {gnd:"Z10", vcc:"Z11", sck:"Z12", sda:"Z13", sckEsp:"A6", sdaEsp:"A9"};
+
+var NETS = [
+  {id:"gnd",    label:"GND bus",              color:"#2b2b2b", chain:["A18","K18","M15","O5","Q11","Q15","Q19","R2","U15","Z10"]},
+  {id:"pwr",    label:"3V3 power",             color:"#c23b3b", pairs:[["A19","Z11"]]},
+  {id:"up",     label:"Up — GPIO26",           color:"#2f6fd6", pairs:[["K13","U17"]]},
+  {id:"right",  label:"Right — GPIO27",        color:"#2fa84f", pairs:[["K14","Q21"]]},
+  {id:"middle", label:"Middle — GPIO32",       color:"#e08a1e", pairs:[["K10","Q17"]]},
+  {id:"down",   label:"Down — GPIO33",         color:"#8e44ad", pairs:[["K11","M17"]]},
+  {id:"left",   label:"Left — GPIO25",         color:"#16968a", pairs:[["K12","Q13"]]},
+  {id:"x",      label:"X — GPIO4",             color:"#d1337b", pairs:[["A15","O7"]]},
+  {id:"y",      label:"Y — GPIO2",             color:"#8a5a2b", pairs:[["A16","R4"]]},
+  {id:"sda",    label:"OLED SDA — GPIO21",     color:"#1aa3a3", pairs:[["A9","Z13"]]},
+  {id:"sck",    label:"OLED SCK/SCL — GPIO22", color:"#b89b1a", pairs:[["A6","Z12"]]}
+];
+
+var RFID_ZONE_ROWS = ["P","Q","R","S","T","U","V","W"]; // column 1, reserved empty
+var RFID_FUTURE = {
+  "A12":"RFID SS → GPIO5",
+  "A11":"RFID SCK → GPIO18",
+  "A10":"RFID MISO → GPIO19",
+  "A5":"RFID MOSI → GPIO23",
+  "A14":"RFID RST → GPIO16"
+};
+var STRAPPING = {"A16":"Strapping pin (GPIO2) — see flagged note below.","A17":"Strapping pin (GPIO15) — left free intentionally."};
+var INPUT_ONLY = {"K9":"Input‑only ADC (GPIO35)","K8":"Input‑only ADC (GPIO34)","K7":"Input‑only (GPIO36 / VP)","K6":"Input‑only (GPIO39 / VN)"};
+var UART0 = {"A8":"UART0 RX — used by USB flashing/monitor","A7":"UART0 TX — used by USB flashing/monitor"};
+var POWER_UNUSED = {"K19":"VIN (5V in) — unused in this plan","K5":"EN (reset) — unused in this plan"};
+
+/* build hole -> net membership + wire segments */
+var holeNets = {}; // id -> [netId,...]
+var segments = []; // {net,color,a,b}
+NETS.forEach(function(n){
+  if(n.chain){
+    for(var i=0;i<n.chain.length-1;i++){
+      segments.push({net:n.id, color:n.color, a:n.chain[i], b:n.chain[i+1]});
+    }
+    n.chain.forEach(function(h){ (holeNets[h]=holeNets[h]||[]).push(n.id); });
+  }
+  if(n.pairs){
+    n.pairs.forEach(function(p){
+      segments.push({net:n.id, color:n.color, a:p[0], b:p[1]});
+      (holeNets[p[0]]=holeNets[p[0]]||[]).push(n.id);
+      (holeNets[p[1]]=holeNets[p[1]]||[]).push(n.id);
+    });
+  }
+});
+
+function netOf(id){ return holeNets[id] ? holeNets[id][0] : null; }
+function netColor(id){ var n=netOf(id); var f=NETS.filter(function(x){return x.id===n;}); return f.length?f[0].color:null; }
+function netLabel(id){ var n=netOf(id); var f=NETS.filter(function(x){return x.id===n;}); return f.length?f[0].label:null; }
+
+/* describe a hole for the info panel and tooltips */
+function describe(id){
+  var h = parseHole(id);
+  var base = { id:id, func:null, extra:[] };
+  if(h.letter==="K" && ESP32_TOP[h.col]) base.func = ESP32_TOP[h.col];
+  if(h.letter==="A" && ESP32_BOTTOM[h.col]) base.func = ESP32_BOTTOM[h.col];
+  BUTTONS.forEach(function(b){
+    if(id===b.gpioHole) base.func = b.name + " button — signal (" + b.gpio + ")";
+    if(id===b.gndHole) base.func = b.name + " button — GND pin";
+  });
+  if(id===OLED.gnd) base.func = "OLED — GND";
+  if(id===OLED.vcc) base.func = "OLED — VCC (3V3)";
+  if(id===OLED.sck) base.func = "OLED — SCK/SCL";
+  if(id===OLED.sda) base.func = "OLED — SDA";
+  if(RFID_FUTURE[id]) base.extra.push(RFID_FUTURE[id] + " (reserved, not wired)");
+  if(STRAPPING[id]) base.extra.push(STRAPPING[id]);
+  if(INPUT_ONLY[id]) base.extra.push(INPUT_ONLY[id]);
+  if(UART0[id]) base.extra.push(UART0[id]);
+  if(POWER_UNUSED[id]) base.extra.push(POWER_UNUSED[id]);
+  if(h.col===1 && RFID_ZONE_ROWS.indexOf(h.letter)>=0) base.func = "Reserved — RFID module footprint (empty)";
+  return base;
+}
+
+/* ---------- render ---------- */
+var svg = document.getElementById("board");
+var NS = "http://www.w3.org/2000/svg";
+var hiddenNets = {};
+var hideFree = false;
+var currentView = "back";
+
+function el(tag, attrs){
+  var e = document.createElementNS(NS, tag);
+  for(var k in attrs) e.setAttribute(k, attrs[k]);
+  return e;
+}
+
+function render(view){
+  currentView = view;
+  svg.innerHTML = "";
+
+  // background grid of every hole
+  var gridG = el("g", {id:"grid"});
+  for(var ri=0; ri<=MAX_ROW_IDX; ri++){
+    for(var c=MIN_COL; c<=MAX_COL; c++){
+      var cx = colX(c, view), cy = rowY(ri);
+      var dot = el("circle", {cx:cx, cy:cy, r:2.1, class:"hole-free"});
+      if(hideFree) dot.style.display="none";
+      gridG.appendChild(dot);
+    }
+  }
+  svg.appendChild(gridG);
+
+  // axis labels: columns along top & bottom, rows along left & right
+  var axisG = el("g", {id:"axis"});
+  for(var c2=MIN_COL;c2<=MAX_COL;c2++){
+    var x2 = colX(c2, view);
+    var t1 = el("text", {x:x2, y: MY-14, class:"axis-lbl", "text-anchor":"middle"}); t1.textContent=c2; axisG.appendChild(t1);
+    var t2 = el("text", {x:x2, y: rowY(0)+22, class:"axis-lbl", "text-anchor":"middle"}); t2.textContent=c2; axisG.appendChild(t2);
+  }
+  for(var ri2=0; ri2<=MAX_ROW_IDX; ri2++){
+    var y2 = rowY(ri2);
+    var t3 = el("text", {x: MX-18, y:y2+3, class:"axis-lbl", "text-anchor":"middle"}); t3.textContent=ROWL[ri2]; axisG.appendChild(t3);
+    var t4 = el("text", {x: colX(MAX_COL,view)+18, y:y2+3, class:"axis-lbl", "text-anchor":"middle"}); t4.textContent=ROWL[ri2]; axisG.appendChild(t4);
+  }
+  svg.appendChild(axisG);
+
+  // component outlines
+  var compG = el("g", {id:"components"});
+  function outlineRect(c1,c2,r1,r2,label,cls){
+    var xA = colX(c1, view), xB = colX(c2, view);
+    var x = Math.min(xA,xB)-10, w = Math.abs(xA-xB)+20;
+    var yA = rowY(r1), yB = rowY(r2);
+    var y = Math.min(yA,yB)-10, h = Math.abs(yA-yB)+20;
+    var rect = el("rect", {x:x,y:y,width:w,height:h,rx:8,class:cls||"comp-outline"});
+    compG.appendChild(rect);
+    if(label){
+      var tx = el("text", {x:x+6, y:y+13, class:"lbl", "font-size":9}); tx.textContent=label; compG.appendChild(tx);
+    }
+  }
+  outlineRect(19,5, rowIdx("K"), rowIdx("A"), "ESP32-WROOM module (front)", "comp-outline");
+  BUTTONS.forEach(function(b){
+    var hg = parseHole(b.gpioHole), hn = parseHole(b.gndHole);
+    outlineRect(hg.col, hn.col, rowIdx(hg.letter), rowIdx(hn.letter), b.name, "comp-outline");
+  });
+  outlineRect(13,10, rowIdx("Z"), rowIdx("Z"), "OLED SSD1306 (I2C)", "comp-outline");
+  outlineRect(1,1, rowIdx("W"), rowIdx("P"), "RFID — RESERVED, EMPTY", "rfid-zone");
+  svg.appendChild(compG);
+
+  // wires
+  var wireG = el("g", {id:"wires"});
+  segments.forEach(function(s){
+    var a = pos(s.a, view), b = pos(s.b, view);
+    var line = el("path", {
+      d:"M"+a.x+","+a.y+" L"+b.x+","+b.y,
+      stroke:s.color, "stroke-width":2.6, class:"wire net-"+s.net
+    });
+    if(hiddenNets[s.net]) line.style.display="none";
+    wireG.appendChild(line);
+  });
+  svg.appendChild(wireG);
+
+  // meaningful holes on top
+  var holeG = el("g", {id:"holes"});
+  function drawHole(id, labelMain, labelSub, side){
+    var p = pos(id, view);
+    var n = netOf(id);
+    var color = n ? netColor(id) : null;
+    var isGnd = n==="gnd";
+    var isRfidZone = (function(){ var h=parseHole(id); return h.col===1 && RFID_ZONE_ROWS.indexOf(h.letter)>=0; })();
+    var isFuture = !!RFID_FUTURE[id];
+
+    var hit = el("circle", {cx:p.x, cy:p.y, r:9, class:"hole-hit", "data-id":id});
+    hit.addEventListener("click", function(){ selectHole(id); });
+    holeG.appendChild(hit);
+
+    var visible;
+    if(isRfidZone){
+      visible = el("circle", {cx:p.x, cy:p.y, r:4.2, class:"hole-visible hole-reserved"});
+    } else if(color){
+      visible = el("circle", {cx:p.x, cy:p.y, r:4.6, fill:color, class:"hole-visible hole-net"});
+    } else {
+      visible = el("circle", {cx:p.x, cy:p.y, r:4.2, class:"hole-visible hole-free", fill:"var(--hole)", opacity:1});
+    }
+    if(hiddenNets[n]) visible.style.display = n ? "none" : visible.style.display;
+    holeG.appendChild(visible);
+
+    if(isFuture){
+      var ring = el("circle", {cx:p.x, cy:p.y, r:7, class:"hole-future"});
+      holeG.appendChild(ring);
+    }
+
+    if(labelMain){
+      var dx = side==="left" ? -8 : side==="right" ? 8 : 0;
+      var dy = side==="above" ? -8 : side==="below" ? 13 : 0;
+      var anchor = side==="left" ? "end" : side==="right" ? "start" : "middle";
+      var rot = (side==="above"||side==="below") ? " rotate(-40 "+(p.x+dx)+" "+(p.y+dy)+")" : "";
+      var t = el("text", {x:p.x+dx, y:p.y+dy, class:"lbl lbl-strong", "font-size":8.3, "text-anchor":anchor, transform:rot.trim()});
+      t.textContent = labelMain;
+      holeG.appendChild(t);
+      if(labelSub){
+        var dy2 = dy + (side==="above" ? -9 : side==="below" ? 9 : 10);
+        var t2 = el("text", {x:p.x+dx, y:p.y+dy2, class:"lbl "+(isFuture?"lbl-warn":""), "font-size":7.2, "text-anchor":anchor, transform:rot.trim(), "font-style":"italic"});
+        t2.textContent = labelSub;
+        holeG.appendChild(t2);
+      }
+    }
+  }
+
+  // ESP32 top row — labels above, rotated
+  Object.keys(ESP32_TOP).forEach(function(c){
+    var id = "K"+c;
+    drawHole(id, ESP32_TOP[c], RFID_FUTURE[id]||STRAPPING[id]||INPUT_ONLY[id]||POWER_UNUSED[id]||null, "above");
+  });
+  // ESP32 bottom row — labels below, rotated
+  Object.keys(ESP32_BOTTOM).forEach(function(c){
+    var id = "A"+c;
+    drawHole(id, ESP32_BOTTOM[c], RFID_FUTURE[id]||STRAPPING[id]||INPUT_ONLY[id]||UART0[id]||null, "below");
+  });
+  // Buttons
+  BUTTONS.forEach(function(b){
+    drawHole(b.gpioHole, b.name, "GPIO", view==="back" ? "right":"left");
+    drawHole(b.gndHole, b.name, "GND", view==="back" ? "right":"left");
+  });
+  // OLED
+  drawHole(OLED.gnd, "OLED", "GND", "left");
+  drawHole(OLED.vcc, "OLED", "VCC", "left");
+  drawHole(OLED.sck, "OLED", "SCK", "right");
+  drawHole(OLED.sda, "OLED", "SDA", "right");
+  // RFID reserved zone holes (no text, just reserved ring)
+  RFID_ZONE_ROWS.forEach(function(l){ drawHole(l+"1", null, null, null); });
+
+  svg.appendChild(holeG);
+}
+
+function selectHole(id){
+  var d = describe(id);
+  var n = netOf(id);
+  var panel = document.getElementById("panel");
+  var html = "<div><b>"+id+"</b> &nbsp; <span class='ph'>"+(d.func||"unlabeled / spare hole")+"</span></div>";
+  if(n){
+    var mates = [];
+    segments.forEach(function(s){ if(s.net===n){ if(s.a===id) mates.push(s.b); if(s.b===id) mates.push(s.a); }});
+    html += "<div style='margin-top:4px'>Net: <b>"+netLabel(id)+"</b></div>";
+    if(mates.length) html += "<div>Wired to: <b>"+mates.join(", ")+"</b></div>";
+  }
+  d.extra.forEach(function(x){ html += "<div class='ph' style='margin-top:3px'>⚑ "+x+"</div>"; });
+  panel.innerHTML = html;
+
+  document.querySelectorAll(".wire").forEach(function(w){ w.classList.remove("hot"); w.classList.remove("dim"); });
+  if(n){
+    document.querySelectorAll(".wire").forEach(function(w){
+      if(w.classList.contains("net-"+n)) w.classList.add("hot"); else w.classList.add("dim");
+    });
+  }
+}
+
+/* ---------- legend ---------- */
+var legendEl = document.getElementById("legend");
+NETS.forEach(function(n){
+  var item = document.createElement("div");
+  item.className = "leg-item";
+  item.dataset.net = n.id;
+  item.innerHTML = "<span class='swatch' style='background:"+n.color+"'></span>"+n.label;
+  item.addEventListener("click", function(){
+    hiddenNets[n.id] = !hiddenNets[n.id];
+    item.dataset.off = hiddenNets[n.id] ? "true":"false";
+    render(currentView);
+  });
+  legendEl.appendChild(item);
+});
+
+/* ---------- toolbar ---------- */
+document.getElementById("btn-back").addEventListener("click", function(){
+  this.setAttribute("aria-pressed","true");
+  document.getElementById("btn-front").setAttribute("aria-pressed","false");
+  render("back");
+});
+document.getElementById("btn-front").addEventListener("click", function(){
+  this.setAttribute("aria-pressed","true");
+  document.getElementById("btn-back").setAttribute("aria-pressed","false");
+  render("front");
+});
+document.getElementById("btn-all").addEventListener("click", function(){
+  hiddenNets = {};
+  document.querySelectorAll(".leg-item").forEach(function(i){ i.dataset.off="false"; });
+  render(currentView);
+});
+document.getElementById("btn-none").addEventListener("click", function(){
+  NETS.forEach(function(n){ hiddenNets[n.id]=true; });
+  document.querySelectorAll(".leg-item").forEach(function(i){ i.dataset.off="true"; });
+  render(currentView);
+});
+document.getElementById("btn-freehide").addEventListener("click", function(){
+  hideFree = !hideFree;
+  this.textContent = hideFree ? "Show free holes" : "Hide free holes";
+  render(currentView);
+});
+
+render("back");
+
+/* ---------- static tables ---------- */
+var wireRows = [
+  ["GND bus","A18 (ESP32 GND)","K18 (ESP32 GND)","GND","segment 1 of daisy chain"],
+  ["GND bus","K18","M15 (Down GND)","GND","segment 2"],
+  ["GND bus","M15","O5 (X GND)","GND","segment 3"],
+  ["GND bus","O5","Q11 (Left GND)","GND","segment 4"],
+  ["GND bus","Q11","Q15 (Middle GND)","GND","segment 5"],
+  ["GND bus","Q15","Q19 (Right GND)","GND","segment 6"],
+  ["GND bus","Q19","R2 (Y GND)","GND","segment 7"],
+  ["GND bus","R2","U15 (Up GND)","GND","segment 8"],
+  ["GND bus","U15","Z10 (OLED GND)","GND","segment 9 — chain ends at OLED"],
+  ["3V3 power","A19 (ESP32 3V3)","Z11 (OLED VCC)","3V3","also feeds RFID later (shared net)"],
+  ["Up","K13 (GPIO26 / D26)","U17","signal, pull‑up","matches repo pindefs.h"],
+  ["Right","K14 (GPIO27 / D27)","Q21","signal, pull‑up","matches repo pindefs.h"],
+  ["Middle","K10 (GPIO32 / D32)","Q17","signal, pull‑up","matches repo pindefs.h (Center/SEL)"],
+  ["Down","K11 (GPIO33 / D33)","M17","signal, pull‑up","matches repo pindefs.h"],
+  ["Left","K12 (GPIO25 / D25)","Q13","signal, pull‑up","matches repo pindefs.h (back button)"],
+  ["X","A15 (GPIO4 / D4)","O7","signal, pull‑up","new button, per your remap"],
+  ["Y","A16 (GPIO2 / D2)","R4","signal, pull‑up","new button — GPIO2 is a strapping pin, see flags"],
+  ["OLED SDA","A9 (GPIO21 / D21)","Z13","I2C data","OLED‑only, per your instruction"],
+  ["OLED SCK","A6 (GPIO22 / D22)","Z12","I2C clock","OLED‑only, per your instruction"]
+];
+var tbody = document.getElementById("wire-table");
+wireRows.forEach(function(r){
+  var tr = document.createElement("tr");
+  tr.innerHTML = "<td>"+r[0]+"</td><td class='mono'>"+r[1]+"</td><td class='mono'>"+r[2]+"</td><td>"+r[3]+"</td><td>"+r[4]+"</td>";
+  tbody.appendChild(tr);
+});
+
+function fillEspTable(tblId, map, order){
+  var t = document.getElementById(tblId);
+  var rows = "<thead><tr><th>Hole</th><th>Function</th><th>Status</th></tr></thead><tbody>";
+  order.forEach(function(c){
+    var id = tblId==="tbl-top" ? "K"+c : "A"+c;
+    var fn = map[c];
+    var status = "free";
+    BUTTONS.forEach(function(b){ if(b.espHole===id) status = b.name+" button"; });
+    if(id===OLED.sckEsp) status="OLED SCK";
+    if(id===OLED.sdaEsp) status="OLED SDA";
+    if(id==="A19") status="OLED VCC / 3V3 rail";
+    if(id==="K18"||id==="A18") status="GND bus";
+    if(RFID_FUTURE[id]) status="reserved — "+RFID_FUTURE[id];
+    if(STRAPPING[id]) status="free — "+STRAPPING[id];
+    if(INPUT_ONLY[id]) status="free — "+INPUT_ONLY[id];
+    if(UART0 && UART0[id]) status="free — "+UART0[id];
+    if(POWER_UNUSED[id]) status="unused — "+POWER_UNUSED[id];
+    rows += "<tr><td class='mono'>"+id+"</td><td class='mono'>"+fn+"</td><td>"+status+"</td></tr>";
+  });
+  rows += "</tbody>";
+  t.innerHTML = rows;
+}
+fillEspTable("tbl-top", ESP32_TOP, [19,18,17,16,15,14,13,12,11,10,9,8,7,6,5]);
+fillEspTable("tbl-bottom", ESP32_BOTTOM, [19,18,17,16,15,14,13,12,11,10,9,8,7,6,5]);
+
+/* ---------- flags ---------- */
+var flags = [
+  ["GPIO2 strapping pin (Y button)", "GPIO2 must read LOW or float at boot on most ESP32‑WROOM modules. With an internal pull‑up it idles HIGH, which on some boards can interfere with normal boot/flashing if the Y button happens to be held, or on certain module revisions even when idle. Flash and boot‑test the board before fully committing to this wiring; if you see boot issues, the cleanest swap is GPIO14 or GPIO15 (D14/D15 — both free)."],
+  ["Row/column direction is taken literally from your spec", "Front columns decrease left→right (K19→K5), so back columns increase left→right — this diagram mirrors accordingly. If your physical board's silkscreen runs the other way, the hole content is still correct, only the left/right orientation needs flipping."],
+  ["Row order above/below K and A is inferred, not stated", "You gave exact coordinates for buttons, OLED and the RFID column, but not the full alphabetical row order. This plan assumes standard A→Z ordering (A bottom, increasing upward), which is the only ordering consistent with every coordinate you gave — but it's worth a quick sanity check against your physical board before drilling."],
+  ["Rows B–J sit under the ESP32 module body", "Those holes are between the two header rows (A and K) and are physically covered once the ESP32 is mounted on the front. Don't plan any other component or wire through them."],
+  ["GND is only 2 pins on this header (K18, A18)", "All 7 buttons, the OLED, and (later) the RFID reader share just two ESP32 GND pins via the bus. Current draw is trivial for buttons/OLED, so this is fine — but keep the daisy‑chain joints mechanically solid (twist + solder, not just touching) since every downstream ground depends on the upstream link."],
+  ["OLED \"SCK\" is assumed to mean I2C SCL", "The repo wires the OLED over I2C (U8g2 library), so \"SCK\"/\"SDA\" at Z12/Z13 are treated as I2C clock/data (GPIO22/21), not SPI. If your OLED module is actually SPI, flag it back — the pin count and wiring would need to change."],
+  ["RFID is reserved, not wired", "Per your last instruction, no RFID wires are drawn and the column‑1 zone (P1–W1) stays empty. The pinout table above is a reservation only — confirm your MFRC522 module's pin order before wiring it in later."],
+  ["Board holds 21 columns × 26 rows in this plan", "That's the span needed to cover every coordinate you gave (column 21 at Right‑button pin Q21, row Z for the OLED). You said to ignore physical sizing for now, so this hasn't been checked against the actual 6×8cm / 2.54mm hole count — worth confirming it physically fits before drilling."]
+];
+var flagsEl = document.getElementById("flags");
+flags.forEach(function(f){
+  var li = document.createElement("li");
+  li.innerHTML = "<b>"+f[0]+"</b>"+f[1];
+  flagsEl.appendChild(li);
+});
+
+})();
+</script>
+
+</body></html>
